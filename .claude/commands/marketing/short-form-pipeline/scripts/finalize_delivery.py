@@ -13,8 +13,8 @@ Usage:
   python3 finalize_delivery.py OUTDIR --source-url URL --source-title "…" \
       [--description-file channel_description.txt] [--workdir WORKDIR]
 
---workdir           the fetch.py work directory; its *.vtt is used for per-clip captions.
-                    Without it (or without a VTT) the caption sections are skipped with a note.
+--workdir           the fetch.py work directory; its segments.json (Whisper fallback) or *.vtt
+                    feeds per-clip captions. Without either the caption sections are skipped.
 
 --description-file  a fixed channel description used VERBATIM for every clip (most creators
                     run one boilerplate). Without it, the per-clip caption from clips.json is used.
@@ -24,7 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from timeutil import parse_time_to_seconds as sec  # noqa: E402
-from captions import clip_srt, clip_transcript, parse_rolling_vtt  # noqa: E402
+from captions import clip_srt, clip_transcript, load_cues  # noqa: E402
 
 def _find_preview() -> Path:
     """clip-packaging ships in this repo at .claude/skills/clip-packaging; fall back to a personal install."""
@@ -57,11 +57,9 @@ def main() -> None:
 
     cues = None
     if args.workdir:
-        vtts = sorted(Path(os.path.expanduser(args.workdir)).glob("*.vtt"))
-        if vtts:
-            cues = parse_rolling_vtt(str(vtts[0]))
-        else:
-            print(f"WARN no *.vtt in {args.workdir}; captions skipped")
+        cues = load_cues(os.path.expanduser(args.workdir))
+        if cues is None:
+            print(f"WARN no segments.json or *.vtt in {args.workdir}; captions skipped")
 
     results = json.load(open(OUT / "clips_result.json"))
     index = ["# Clip delivery", f"Source: {args.source_title}", args.source_url, "",

@@ -73,10 +73,41 @@ def reconstruct(vtt_path: str) -> str:
     return "\n".join(paras)
 
 
+def whisper_transcript(src: str, workdir: str, model_name: str = "small") -> str:
+    """Transcribe the source with openai-whisper; write segments.json; return paragraphs.
+
+    Segments are grouped into ~700-char paragraphs stamped with the first segment's
+    start, matching the shape reconstruct() produces from a VTT.
+    """
+    try:
+        import whisper
+    except ImportError:
+        print("WARN openai-whisper not installed; pip install openai-whisper", flush=True)
+        return ""
+    model = whisper.load_model(model_name)
+    result = model.transcribe(src, fp16=False, verbose=False, language="en")
+    segs = [{"start": round(float(x["start"]), 3), "end": round(float(x["end"]), 3), "text": x["text"].strip()}
+            for x in result["segments"] if x["text"].strip()]
+    json.dump(segs, open(f"{workdir}/segments.json", "w"), indent=1)
+    paras, cur, cur_ts = [], [], None
+    for sg in segs:
+        if cur and len(" ".join(cur)) > 700:
+            paras.append(f"[{mmss(cur_ts)}] {' '.join(cur)}")
+            cur, cur_ts = [], None
+        if cur_ts is None:
+            cur_ts = sg["start"]
+        cur.append(sg["text"])
+    if cur:
+        paras.append(f"[{mmss(cur_ts)}] {' '.join(cur)}")
+    return "\n".join(paras)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("url")
     ap.add_argument("--workdir")
+    ap.add_argument("--no-whisper", action="store_true", help="do not fall back to Whisper when YouTube captions are unavailable")
+    ap.add_argument("--whisper-model", default="small", help="Whisper model for the fallback (tiny/base/small/medium)")
     args = ap.parse_args()
 
     m = re.search(r"(?:v=|youtu\.be/|shorts/)([\w-]{6,})", args.url)
@@ -105,22 +136,34 @@ def main() -> None:
         )
 
     transcript = ""
+    transcript_source = None
     vtts = list(Path(workdir).glob("*.vtt"))
     if vtts:
         transcript = reconstruct(str(vtts[0]))
+        transcript_source = "youtube-auto-captions"
+    elif os.path.exists(src) and not args.no_whisper:
+        # YouTube rate-limits the caption endpoint (HTTP 429) after a few downloads from one
+        # IP even though the video itself downloads fine. Fall back to Whisper on the audio:
+        # better text than YouTube ASR, segment timings ~0.5 s, and segments.json feeds
+        # captions.py for per-clip SRT. ~1x realtime on CPU with the small model.
+        print("no captions from YouTube (rate-limited or none) -> transcribing with Whisper", flush=True)
+        transcript = whisper_transcript(src, workdir, args.whisper_model)
+        transcript_source = f"whisper-{args.whisper_model}" if transcript else None
+    if transcript:
         Path(f"{workdir}/transcript.txt").write_text(transcript)
 
     json.dump({
         "url": args.url, "title": title, "duration": dur,
         "video_id": realid or vid, "source": src,
         "transcript": f"{workdir}/transcript.txt", "has_transcript": bool(transcript),
+        "transcript_source": transcript_source,
     }, open(f"{workdir}/meta.json", "w"), indent=2)
 
     print(f"WORKDIR={workdir}")
     print(f"TITLE={title}")
     print(f"DURATION={dur}s")
     print(f"SOURCE={'ok' if os.path.exists(src) else 'MISSING'}")
-    print(f"TRANSCRIPT={'ok -> ' + workdir + '/transcript.txt' if transcript else 'NONE (no auto-captions)'}")
+    print(f"TRANSCRIPT={'ok (' + str(transcript_source) + ') -> ' + workdir + '/transcript.txt' if transcript else 'NONE (no captions and Whisper unavailable)'}")
 
 
 if __name__ == "__main__":

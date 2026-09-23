@@ -5,8 +5,13 @@ We keep the newest line of every cue with that cue's start time, drop exact/subs
 repeats, then for a clip window [start, end) emit SRT entries offset to clip time so the
 file uploads straight into YouTube Studio → Subtitles → Upload file.
 
-No model tokens. Text quality is YouTube's ASR; timings are cue-accurate (~1 s).
+No model tokens. Cue source is either the YouTube VTT (ASR text, ~1 s timing) or, when
+YouTube rate-limited the caption endpoint, Whisper's segments.json written by fetch.py
+(better text, ~0.5 s timing). load_cues() picks whichever the workdir has.
 """
+from __future__ import annotations
+
+import json
 
 import html
 import re
@@ -39,6 +44,23 @@ def parse_rolling_vtt(vtt_path: str) -> list[tuple[float, str]]:
             continue
         kept.append((parse_time_to_seconds(m.group(1)), txt))
     return kept
+
+
+def parse_whisper_segments(path: str) -> list[tuple[float, str]]:
+    """segments.json from fetch.py's Whisper fallback -> [(start_seconds, text), ...]."""
+    return [(float(sg["start"]), sg["text"].strip()) for sg in json.load(open(path)) if sg.get("text", "").strip()]
+
+
+def load_cues(workdir: str) -> list[tuple[float, str]] | None:
+    """Prefer Whisper segments (cleaner text) when both exist; else the VTT; else None."""
+    wd = Path(workdir)
+    seg = wd / "segments.json"
+    if seg.exists():
+        return parse_whisper_segments(str(seg))
+    vtts = sorted(wd.glob("*.vtt"))
+    if vtts:
+        return parse_rolling_vtt(str(vtts[0]))
+    return None
 
 
 def _srt_time(t: float) -> str:

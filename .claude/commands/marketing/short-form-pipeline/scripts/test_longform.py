@@ -143,6 +143,15 @@ class Captions(unittest.TestCase):
         self.assertNotIn(">>", srt)
         self.assertEqual(srt.count("-->"), 3)
 
+    def test_load_cues_prefers_whisper_segments(self):
+        import captions
+        with tempfile.TemporaryDirectory() as td:
+            Path(td, "src.en.vtt").write_text(ROLLING_VTT)
+            self.assertEqual(len(captions.load_cues(td)), 5)
+            json.dump([{"start": 1.0, "end": 2.0, "text": " hi "}, {"start": 2.0, "end": 3.0, "text": ""}], open(Path(td, "segments.json"), "w"))
+            self.assertEqual(captions.load_cues(td), [(1.0, "hi")])
+            self.assertIsNone(captions.load_cues(tempfile.mkdtemp()))
+
     def test_clip_transcript_relative_times(self):
         import captions
         cues = [(120.0, "a"), (125.0, "b"), (200.0, "c")]

@@ -19,7 +19,7 @@ pycheck PIL   "Pillow (thumbnail text renderer)"    Pillow
 if python3 -c "import whisper" >/dev/null 2>&1; then
   echo "  ✓ openai-whisper (burned captions)"
 else
-  echo "  ~ openai-whisper missing — only needed when burning captions (Shorts, or --aspect 16:9 without --no-captions)"
+  echo "  ~ openai-whisper missing — needed as the transcript fallback when YouTube rate-limits captions (common), and for Shorts"
   warn=1
 fi
 

@@ -7,9 +7,9 @@ root automatically, so open Claude Code **in this repo** and the commands are th
 ## 1. Machine deps (once)
 
 ```bash
-brew install yt-dlp ffmpeg
+brew install yt-dlp ffmpeg          # python3 >= 3.9
 python3 -m pip install --user opencv-python numpy Pillow
-python3 -m pip install --user openai-whisper      # only if you will burn captions (Shorts)
+python3 -m pip install --user openai-whisper      # transcript fallback when YouTube rate-limits captions; required for Shorts
 bash .claude/commands/marketing/short-form-pipeline/scripts/doctor.sh
 ```
 

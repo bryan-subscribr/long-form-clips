@@ -180,6 +180,15 @@ around the speaker when the face is small (`--zoom-below`, default on) so the
 face reads at MoreMozi size; hands and knees are ignored as face candidates
 (only detections in the upper 55% of the frame count).
 
+## Transcript source
+
+`fetch.py` asks YouTube for auto-captions first. YouTube rate-limits that endpoint
+(HTTP 429) after a few downloads from one IP even when the video downloads fine, so
+when no VTT arrives the script **falls back to Whisper** on the audio (`small` model,
+~1× realtime on CPU) and writes `segments.json`. `captions.py` prefers those
+segments (cleaner text, ~0.5 s timing) over the VTT for the per-clip `.srt`.
+`meta.json` records `transcript_source`. `--no-whisper` disables the fallback.
+
 ## Model and cost
 
 Run the workflow on **Sonnet**. Selection, titles and thumb text are well-specified
