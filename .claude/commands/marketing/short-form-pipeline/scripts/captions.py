@@ -82,9 +82,11 @@ def clip_srt(cues: list[tuple[float, str]], start: float, end: float, max_len: f
     out = []
     n = 0
     for i, (t, txt) in enumerate(cues):
-        if t < start - 0.5 or t >= end:
-            continue
         nxt = cues[i + 1][0] if i + 1 < len(cues) else t + max_len
+        # Keep cues inside the window, plus the one that straddles the clip start
+        # (a clip usually begins mid-segment; without this the first seconds are silent).
+        if t >= end or nxt <= start:
+            continue
         t0 = max(t, start)
         t1 = min(nxt, t0 + max_len, end)
         if t1 - t0 < 0.3:
@@ -97,8 +99,10 @@ def clip_srt(cues: list[tuple[float, str]], start: float, end: float, max_len: f
 def clip_transcript(cues: list[tuple[float, str]], start: float, end: float) -> str:
     """Readable [mm:ss] transcript for the window, timings relative to the clip."""
     lines = []
-    for t, txt in cues:
-        if start - 0.5 <= t < end:
-            rel = max(0.0, t - start)
-            lines.append(f"[{int(rel) // 60:02d}:{int(rel) % 60:02d}] {txt}")
+    for i, (t, txt) in enumerate(cues):
+        nxt = cues[i + 1][0] if i + 1 < len(cues) else t + 7.0
+        if t >= end or nxt <= start:
+            continue
+        rel = max(0.0, t - start)
+        lines.append(f"[{int(rel) // 60:02d}:{int(rel) % 60:02d}] {txt}")
     return "\n".join(lines)

@@ -137,6 +137,9 @@ class Captions(unittest.TestCase):
         self.assertEqual([t for t, _ in cues], [0.0, 1.5, 3.0, 4.5, 7.0])
         srt = captions.clip_srt(cues, start=3.0, end=8.5)
         self.assertTrue(srt.startswith("1\n00:00:00,000 --> 00:00:01,500\nBecause there's always something to sell."), srt)
+        # a clip that starts mid-cue still gets that cue from 0:00 (clipped), not a silent lead-in
+        mid = captions.clip_srt(cues, start=3.7, end=8.5)
+        self.assertTrue(mid.startswith("1\n00:00:00,000 --> 00:00:00,800\nBecause there's always something to sell."), mid)
         self.assertIn("00:00:01,500 --> 00:00:04,000\nHow do you become dangerous at sales?", srt)
         self.assertIn("Mhm, you shut up.", srt)
         self.assertNotIn("[music]", srt)
@@ -157,6 +160,7 @@ class Captions(unittest.TestCase):
         cues = [(120.0, "a"), (125.0, "b"), (200.0, "c")]
         out = captions.clip_transcript(cues, 120.0, 130.0)
         self.assertEqual(out, "[00:00] a\n[00:05] b")
+        self.assertEqual(captions.clip_transcript(cues, 122.0, 130.0), "[00:00] a\n[00:03] b")
 
 
 class FinalizeDelivery(unittest.TestCase):
