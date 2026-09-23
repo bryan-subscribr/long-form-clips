@@ -18,7 +18,9 @@ pass that to the renderer and 10-minute clips render in about a minute instead o
 
 ## 2. Run
 
-In Claude Code, from the repo root:
+In Claude Code, from the repo root, **on Sonnet** (type `/model sonnet` first — the
+workflow is tuned for it and it costs a fifth of Opus/Fable; a 90-min video runs about
+$1–2 in Claude Code):
 
 ```
 /long-form-clips https://www.youtube.com/watch?v=VIDEO_ID
@@ -28,9 +30,10 @@ Flow: doctor → download + transcript → Claude reads the whole transcript and
 clips (4–5 min or longer each) with titles and thumbnail text → **you approve** → render →
 Claude reviews every thumbnail contact sheet → delivery folder in `~/Downloads/<slug>-clips/`.
 
-Per clip you get: `.mp4` (1920×1080, no captions), `.thumb.jpg` (text burned in the
-MoreMozi style), `.txt` (title, thumbnail text, description, pinned comment, source link),
-`.thumb-frame.jpg` (clean frame), `.thumb-candidates.jpg` (frames considered).
+Per clip you get: `.mp4` (1920×1080, no burned captions), `.thumb.jpg` (text burned in
+the MoreMozi style), `.srt` (captions timed to the clip — YouTube Studio → Subtitles →
+Upload file → With timing), `.txt` (title, thumbnail text, description, pinned comment,
+source link, timed transcript, captions), `.thumb-frame.jpg`, `.thumb-candidates.jpg`.
 
 Vertical Shorts instead: `/short-form-repurposing <url>` (needs Whisper).
 
@@ -48,7 +51,7 @@ Vertical Shorts instead: `/short-form-repurposing <url>` (needs Whisper).
 S=.claude/commands/marketing/short-form-pipeline/scripts
 python3 $S/render_clips.py --workdir WORK --clips WORK/clips.json --out OUT --aspect 16:9 --no-captions --encoder h264_videotoolbox
 python3 $S/pick_thumb_frame.py WORK/source.mp4 --at 77:58 --ref WORK/speaker_ref.jpg --out frame.jpg --sheet sheet.jpg
-python3 $S/finalize_delivery.py OUT --source-url URL --source-title "…" --description-file OUT/CHANNEL_DESCRIPTION.txt
+python3 $S/finalize_delivery.py OUT --source-url URL --source-title "…" --description-file OUT/CHANNEL_DESCRIPTION.txt --workdir WORK
 python3 $S/test_longform.py && python3 $S/test_pipeline.py
 ```
 

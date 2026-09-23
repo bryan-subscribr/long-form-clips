@@ -11,6 +11,14 @@ channel, plus titles, thumbnail text, descriptions, and pinned comments.
 You (Claude) are the brain — you do the clip SELECTION. The scripts do the muscle
 (download, transcribe, cut, caption). No API key is needed.
 
+**Model: run this on Sonnet.** Before anything else, if the session is on a bigger
+model, tell the user to switch (`/model sonnet`) or continue only if they say so. The
+work is well-specified writing with a mechanical checker behind it; Sonnet holds and
+costs a fifth. For a batch of videos, spawn one `general-purpose` agent per video with
+`model: sonnet` and a self-contained prompt. **Never use `fork` for a batch** — a fork
+inherits the whole conversation and the parent model; four forks on a long session
+blew through an org spend limit in Sep 2026. Fresh agents start empty.
+
 **Skill directory:** `.claude/commands/marketing/short-form-pipeline` — refer to it as
 `SKILL` below. **Packaging skill:** `.claude/skills/clip-packaging` (ships in this repo;
 refer to it as `PKG`). Arguments: `$ARGUMENTS` — first token is the YouTube URL,
@@ -109,10 +117,14 @@ continuing. If no count is given, let the content decide (20 min → 2–3, 35 m
 6c. **Build the delivery set.**
    ```
    python3 SKILL/scripts/finalize_delivery.py <out> --source-url "<URL>" \
-     --source-title "<title>" --description-file <out>/CHANNEL_DESCRIPTION.txt
+     --source-title "<title>" --description-file <out>/CHANNEL_DESCRIPTION.txt \
+     --workdir <WORKDIR>
    ```
-   Every clip ends up as `.mp4` + `.thumb.jpg` + `.txt` (title, thumb text,
-   description, pinned comment, source window) + `.thumb-frame.jpg`, plus `README.md`.
+   Every clip ends up as `.mp4` + `.thumb.jpg` + `.srt` (captions timed to the clip,
+   upload in YouTube Studio → Subtitles → Upload file, With timing) + `.txt` (title,
+   thumb text, description, pinned comment, source window, timed transcript, the same
+   captions inline) + `.thumb-frame.jpg`, plus `README.md`. `--workdir` is what makes
+   the captions happen: it points at the fetch directory holding the source VTT.
    Then **Read every final `*.thumb.jpg`** once. Heuristics rank, eyes decide.
 
 7. **Report.** Tell the user the output folder, list each clip with its title,

@@ -20,7 +20,8 @@ python3 -m pip install --user opencv-python numpy Pillow
 bash .claude/commands/marketing/short-form-pipeline/scripts/doctor.sh
 ```
 
-Open Claude Code in this folder and run:
+Open Claude Code in this folder, switch to Sonnet (`/model sonnet` — the workflow is
+tuned for it, about $1–2 per 90-minute video), and run:
 
 ```
 /long-form-clips https://www.youtube.com/watch?v=VIDEO_ID
@@ -28,8 +29,10 @@ Open Claude Code in this folder and run:
 
 Flow: download + transcript → Claude proposes clips with titles and thumbnail text →
 **you approve** → render 1920×1080 → Claude reviews every thumbnail contact sheet →
-`~/Downloads/<slug>-clips/` with, per clip: `.mp4`, `.thumb.jpg`, `.txt` (title, thumbnail
-text, description, pinned comment, source link), `.thumb-frame.jpg`, `.thumb-candidates.jpg`.
+`~/Downloads/<slug>-clips/` with, per clip: `.mp4`, `.thumb.jpg`, `.srt` (captions timed to
+the clip, ready for YouTube Studio → Subtitles → Upload file), `.txt` (title, thumbnail text,
+description, pinned comment, source link, timed transcript), `.thumb-frame.jpg`,
+`.thumb-candidates.jpg`.
 
 Vertical Shorts instead: `/short-form-repurposing <url>` (needs `pip install openai-whisper`).
 
@@ -51,6 +54,7 @@ Vertical Shorts instead: `/short-form-repurposing <url>` (needs `pip install ope
   every number literally true of the clip.
 - Thumbnail frame: the right speaker, eyes to camera, mouth closed or mid-smile, not mid-word.
   Never the exact second the line is spoken. Heuristics rank, a human (or Claude) confirms.
+- Model: Sonnet. Batches run one fresh agent per video, never a fork of a long session.
 
 ## Tests
 

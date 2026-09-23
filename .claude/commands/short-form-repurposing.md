@@ -10,6 +10,9 @@ plus ready-to-post captions and pinned comments.
 You (Claude) are the brain — you do the clip SELECTION. The scripts do the muscle
 (download, transcribe, cut, crop, caption). No API key is needed.
 
+**Model: run this on Sonnet** (`/model sonnet`). For a batch, one fresh
+`general-purpose` agent per video with `model: sonnet`; never `fork`.
+
 **Skill directory:** `.claude/commands/marketing/short-form-pipeline`
 Refer to it as `SKILL` below. The YouTube URL is: `$ARGUMENTS`
 (if empty, ask the user for the link before continuing).

@@ -127,6 +127,29 @@ class ZoomGeometry(unittest.TestCase):
         self.assertEqual(kept, [(10, 10, 100, 100)])
 
 
+class Captions(unittest.TestCase):
+    def test_clip_srt_offsets_and_dedupes(self):
+        import captions
+        with tempfile.NamedTemporaryFile("w", suffix=".vtt", delete=False) as f:
+            f.write(ROLLING_VTT)
+        cues = captions.parse_rolling_vtt(f.name)
+        os.unlink(f.name)
+        self.assertEqual([t for t, _ in cues], [0.0, 1.5, 3.0, 4.5, 7.0])
+        srt = captions.clip_srt(cues, start=3.0, end=8.5)
+        self.assertTrue(srt.startswith("1\n00:00:00,000 --> 00:00:01,500\nBecause there's always something to sell."), srt)
+        self.assertIn("00:00:01,500 --> 00:00:04,000\nHow do you become dangerous at sales?", srt)
+        self.assertIn("Mhm, you shut up.", srt)
+        self.assertNotIn("[music]", srt)
+        self.assertNotIn(">>", srt)
+        self.assertEqual(srt.count("-->"), 3)
+
+    def test_clip_transcript_relative_times(self):
+        import captions
+        cues = [(120.0, "a"), (125.0, "b"), (200.0, "c")]
+        out = captions.clip_transcript(cues, 120.0, 130.0)
+        self.assertEqual(out, "[00:00] a\n[00:05] b")
+
+
 class FinalizeDelivery(unittest.TestCase):
     def test_writes_txt_with_verbatim_description_and_timestamp_link(self):
         with tempfile.TemporaryDirectory() as td:
@@ -136,11 +159,15 @@ class FinalizeDelivery(unittest.TestCase):
                         "pinned_comment": "pc", "caption": "per-clip caption", "thumb_frame": None}],
                       open(Path(td, "clips_result.json"), "w"))
             desc = Path(td, "desc.txt"); desc.write_text("Line one\n\nRooting for you,\nShelby xo\n")
+            Path(td, "src.en.vtt").write_text(ROLLING_VTT.replace("00:00:0", "01:05:1"))  # cues at 65:10+
             proc = subprocess.run([sys.executable, str(HERE / "finalize_delivery.py"), td, "--source-url",
                                    "https://www.youtube.com/watch?v=abc&pp=x", "--source-title", "T",
-                                   "--description-file", str(desc)], capture_output=True, text=True)
+                                   "--description-file", str(desc), "--workdir", td], capture_output=True, text=True)
             self.assertEqual(proc.returncode, 0, proc.stderr)
             txt = Path(td, "01_Test.txt").read_text()
+            self.assertIn("CAPTIONS", txt)
+            self.assertIn("00:00:00,000 -->", txt)
+            self.assertTrue(Path(td, "01_Test.srt").exists())
             self.assertIn("DESCRIPTION\nLine one\n\nRooting for you,\nShelby xo\n", txt)
             self.assertNotIn("per-clip caption", txt)
             self.assertIn("&t=3910s", txt)

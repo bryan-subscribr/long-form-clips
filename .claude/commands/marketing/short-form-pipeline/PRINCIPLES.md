@@ -179,3 +179,13 @@ itself is never cropped. On a **single wide camera** the picker auto zoom-crops
 around the speaker when the face is small (`--zoom-below`, default on) so the
 face reads at MoreMozi size; hands and knees are ignored as face candidates
 (only detections in the upper 55% of the frame count).
+
+## Model and cost
+
+Run the workflow on **Sonnet**. Selection, titles and thumb text are well-specified
+writing gated by `check_package.py`; Sonnet holds and costs a fifth of Opus/Fable.
+Batches: one fresh `general-purpose` agent per video, `model: sonnet`, self-contained
+prompt. **Never `fork` for a batch** — forks inherit the entire parent conversation and
+the parent model, so four forks on a long Fable session re-sent ~250k tokens on every
+tool call and hit an org spend limit (Sep 2026). Read each contact sheet once; do not
+poll background renders. Measured need per 90-min video: ~60k in / ~8k out.

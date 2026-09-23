@@ -65,7 +65,7 @@ Full detail in `PRINCIPLES.md`. In short:
 
 Rules for the horizontal mode are in `PRINCIPLES.md` → "Horizontal (Long-Form Clip) Mode".
 Title + thumbnail packaging comes from `.claude/skills/clip-packaging` (ships in this repo).
-Team setup: `TEAM-SETUP.md`.
+Team setup: `TEAM-SETUP.md`. **Run on Sonnet; never fork for a batch** (see the command).
 
 ## Pipeline Overview
 
@@ -89,7 +89,8 @@ Team setup: `TEAM-SETUP.md`.
 | `scripts/test_longform.py` | Deterministic tests for the long-form path: transcript rebuild, result bookkeeping, zoom geometry, delivery writer |
 | `scripts/render_clips.py` | Cuts approved clips (9:16 or 16:9), picks thumb frames, saves `clips_result.json` after every clip |
 | `scripts/pick_thumb_frame.py` | Ranks a ±15 s window for a composed close-up of the right speaker; writes a contact sheet |
-| `scripts/finalize_delivery.py` | Per-clip `.thumb.jpg` + `.txt` (title, description, pinned comment) + `README.md` |
+| `scripts/finalize_delivery.py` | Per-clip `.thumb.jpg` + `.srt` (clip-timed YouTube captions) + `.txt` (title, description, pinned comment, timed transcript) + `README.md` |
+| `scripts/captions.py` | Source auto-caption VTT → per-clip SRT and timed transcript, no model tokens |
 | `scripts/timeutil.py` | Shared MM:SS / HH:MM:SS parsing, dependency-free |
 | `PRINCIPLES.md` | The viral short-form principles encoded in the pipeline |
 | `data/fixtures/reference-transcript.txt` | Reference excerpts used to tune the prompt + guard |
