@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.DS_Store
+*.mp4
+*.wav
+*.vtt
+thumbcands/

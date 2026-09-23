@@ -1,0 +1,57 @@
+REFERENCE TRANSCRIPT — key excerpts
+Source: podcast with a top short-form YouTube creator. Used to tune the
+segmentation prompt and the ad/CTA guard. These are the excerpts that matter for
+the pipeline's logic; the full episode is longer.
+
+=== SUBSCRIBE ASK (must be EXCLUDED — Principle 4) ===
+"Before we start this podcast I have one little favor to ask you. Can you please
+hit the subscribe button down below so we can help more people every single week?
+Thank you."
+
+=== SPONSOR READ #1 (must be EXCLUDED — Principle 4) ===
+"Do you want to grow and monetize your podcast but you don't know where to begin?
+... That's where we come in. We've grown shows to over 100 million views ... If you
+want to learn exactly our podcast growth flywheel ... schedule a call right down
+below."
+
+=== SPONSOR READ #2 (must be EXCLUDED — Principle 4) ===
+"Do you want to know how we book the most amazing guests on our podcast? ... I've
+put everything together in a simple step-by-step process. If you click the link
+down below I'll give you the exact guide to book any guests on your podcast ..."
+
+=== THE HOOK PRINCIPLE (the payoff moment — a GREAT clip) ===
+"First things first, the best hooks don't have a hook. ... I used to think in my
+videos I need to start by saying exactly what I'm going to do and then start the
+video, but in actuality it's better to start the video immediately. ... With
+podcast clips you don't want to be like 'okay I'm interviewing this person and I'm
+about to ask them the craziest question' — no, just ask the question, just start
+with the insane moment."
+
+=== THE THREE-POINT HOOK CHECKLIST ===
+"There's three things I check off: number one it needs to have SHOCK — ideally it's
+visual because people see quicker than they hear ... number two it needs to set a
+CLEAR EXPECTATION of what they are going to get ... and then give the viewer a
+REASON TO WATCH UNTIL THE END — something that makes them so curious they can't
+help but watch to hear how a problem gets resolved."
+
+=== THE CURIOSITY FORMULA ===
+"How would you make someone curious? You need to be specific as to what's going to
+happen, but they don't know how that's going to happen."
+
+=== ON REPURPOSING (edit as a native short) ===
+"If you cut out all the fluff and it's literally edited to be as if it was a
+standalone short, then I think it's totally fine ... reposting a raw clip would
+probably flop."
+
+=== ON TITLES / THUMBNAILS FOR SHORTS ===
+"Thumbnails don't matter on shorts ... title to some extent does ... the key thing
+for me is keeping it as short as possible ... while complementing the actual video."
+
+=== ON THE COMMENT SECTION ===
+"Almost every viral video has a strong comment section ... we want to be intentional
+about designing our comment section — we want to know what we want people to say ...
+spark people emotionally."
+
+=== ON CONTROVERSY ===
+"You can still spark controversy without being controversial ... just having an
+unpopular opinion."

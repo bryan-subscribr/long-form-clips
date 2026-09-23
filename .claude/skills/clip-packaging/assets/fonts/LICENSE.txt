@@ -1,0 +1,4 @@
+Montserrat (Montserrat-ExtraBold.ttf) — Copyright 2011 The Montserrat Project Authors
+(https://github.com/JulietaUla/Montserrat). Licensed under the SIL Open Font License 1.1
+(https://openfontlicense.org). Redistributed here unmodified so thumbnails render in the
+channel's typeface on any teammate's machine.
