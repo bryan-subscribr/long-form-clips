@@ -5,7 +5,7 @@ argument-hint: <youtube-url> [clip-count]
 
 You are running the **Long-Form Clips** workflow: turn one 20–100 min YouTube video
 into several **horizontal 16:9 clips**, each **4–5 minutes or longer** (2–3 min only
-when the idea is a natural unit, hard cap 15), that stand alone on the speaker's
+when the idea is a natural unit, hard cap 20), that stand alone on the speaker's
 channel, plus titles, thumbnail text, descriptions, and pinned comments.
 
 You (Claude) are the brain — you do the clip SELECTION. The scripts do the muscle
@@ -28,13 +28,17 @@ continuing. If no count is given, let the content decide (20 min → 2–3, 35 m
 
 ## Steps — follow in order
 
-1. **Check deps.** Run `bash SKILL/scripts/doctor.sh`. If anything is missing, show
-   the user the install commands it prints and STOP.
+1. **Check deps.** Run `bash SKILL/scripts/doctor.sh` (macOS, and Windows — Claude Code's shell
+   there is Git Bash). Its last lines are `PY=…`, `ENCODER=…`, `X264_PRESET=…`, `READY=…`.
+   **Use that `PY` value wherever this file says `"<PY>"`** — never a bare `python3`, which on
+   Windows is usually the Microsoft Store stub — and the `ENCODER` / `X264_PRESET` values in
+   step 6. If `READY=no`, show the user the FAIL lines and point them at the matching section
+   of `SKILL/TEAM-SETUP.md`, then STOP.
 
 2. **Read the rules.** Read `SKILL/PRINCIPLES.md` — especially the section
    **"Horizontal (Long-Form Clip) Mode"**. Selection follows those rules exactly.
 
-3. **Fetch.** Run `python3 SKILL/scripts/fetch.py "<URL>"`. Capture the `WORKDIR=...`
+3. **Fetch.** Run `"<PY>" SKILL/scripts/fetch.py "<URL>"`. Capture the `WORKDIR=...`
    value from the output. If `TRANSCRIPT=NONE`, tell the user the video has no
    captions and stop.
 
@@ -46,7 +50,8 @@ continuing. If no count is given, let the content decide (20 min → 2–3, 35 m
    - Ends on the payoff or punchline, on a complete sentence.
    - No sponsor reads, subscribe asks, self-promo, or housekeeping inside the window.
    Constraints: **target 4–5 min or longer** (one throughline, several beats).
-   A 2–3 min clip only occasionally, when the idea is a natural unit. Hard cap 15.
+   A 2–3 min clip only occasionally, when the idea is a natural unit. Hard cap 20
+   (the renderer refuses longer windows; YouTube needs a verified channel above 15).
    Prefer merging adjacent beats the host bridges over splitting them. Under ~90s →
    not a horizontal clip. **Zero overlap** between clips. Cut on sentence boundaries.
    For each clip capture: `start`, `end` (MM:SS), `hook_line`, `open_loop`,
@@ -68,12 +73,17 @@ continuing. If no count is given, let the content decide (20 min → 2–3, 35 m
    with ffmpeg from a moment you know is their close-up and LOOK at it). Optional per
    clip: `thumb_crop_bottom` (e.g. `0.15`) when the source has burned-in captions or
    a sponsor banner; `thumb_ref_min` to tighten identity matching if a host leaks in.
-   Gate every pair:
+   **Language:** titles, thumbnail text, hooks, captions and pinned comments are written in
+   the speaker's language (the transcript's), whatever language the operator writes to you in.
+   Gate every pair against its own clip window:
    ```
-   python3 PKG/scripts/check_package.py \
-     --title "<title>" --thumb "<thumb>" --transcript <WORKDIR>/transcript.txt
+   "<PY>" PKG/scripts/check_package.py \
+     --title "<title>" --thumb "<thumb>" --transcript "<WORKDIR>/transcript.txt" \
+     --start <start> --end <end> --thumb-line "<thumb_line>" --ban "<speaker's name, comma-separated>"
    ```
-   Exit code must be 0. Fix and re-run until it is. Then reread each title against
+   Exit code must be 0: it fails when the thumb line is not spoken inside the window, when
+   the title names the speaker, overlaps the thumb, or breaks the length/number rules.
+   Fix and re-run until it is. Then reread each title against
    the **"plain beats clever"** rules in `PRINCIPLES.md`: the clip's own words, first
    person on the speaker's own channel, every number literally true of the clip.
 
@@ -85,13 +95,16 @@ continuing. If no count is given, let the content decide (20 min → 2–3, 35 m
 
 6. **Render.** Write the approved clips as a JSON array to `<WORKDIR>/clips.json`, then:
    ```
-   python3 SKILL/scripts/render_clips.py \
-     --workdir <WORKDIR> --clips <WORKDIR>/clips.json \
+   "<PY>" SKILL/scripts/render_clips.py \
+     --workdir "<WORKDIR>" --clips "<WORKDIR>/clips.json" \
      --out "~/Downloads/<slug>-clips" --aspect 16:9 --no-captions \
-     --encoder h264_videotoolbox
+     --encoder <ENCODER> --x264-preset <X264_PRESET>
    ```
-   where `<slug>` is a short kebab-case version of the video title. Drop `--encoder`
-   on non-Mac machines (libx264 default, ~5 min per 10-min AV1 clip). **Run it in the
+   where `<slug>` is a short kebab-case version of the video title and `<ENCODER>` /
+   `<X264_PRESET>` come from step 1 (a hardware encoder renders a 10-min clip in about a
+   minute; libx264 takes ~5 min at `medium`, about half at `veryfast`). If a hardware
+   encoder fails mid-run the renderer retries that clip on libx264 by itself. It refuses
+   the whole batch up front if any window is over 20 min. **Run it in the
    background** or in chunks (`--start-index N` with a partial clips.json): a long
    source will outlast a foreground tool timeout. `clips_result.json` is saved after
    every clip, so a killed run loses nothing already rendered — rerun with the
@@ -103,22 +116,22 @@ continuing. If no count is given, let the content decide (20 min → 2–3, 35 m
    tool.** If the chosen frame is mid-word, mid-gesture, or the wrong person, pick
    another candidate from that sheet:
    ```
-   python3 SKILL/scripts/pick_thumb_frame.py <WORKDIR>/source.mp4 --at <thumb_frame_at> \
-     --cand-dir <WORKDIR>/thumbcands/<NN> --pick <N> --out <clip>.thumb-frame.jpg
+   "<PY>" SKILL/scripts/pick_thumb_frame.py "<WORKDIR>/source.mp4" --at <thumb_frame_at> \
+     --cand-dir "<WORKDIR>/thumbcands/<NN>" --pick <N> --out "<clip>.thumb-frame.jpg"
    ```
    If none of the candidates work, rescan wider with the full flag set, then pick:
    ```
-   python3 SKILL/scripts/pick_thumb_frame.py <WORKDIR>/source.mp4 --at <thumb_frame_at> \
+   "<PY>" SKILL/scripts/pick_thumb_frame.py "<WORKDIR>/source.mp4" --at <thumb_frame_at> \
      --side <left|right|any> --ref <thumb_ref> [--ref-min 0.9] [--crop-bottom 0.15] \
      --window 25 --top 9 --out <clip>.thumb-frame.jpg \
-     --sheet <clip>.thumb-candidates.jpg --cand-dir <WORKDIR>/thumbcands/re<NN>
+     --sheet "<clip>.thumb-candidates.jpg" --cand-dir "<WORKDIR>/thumbcands/re<NN>"
    ```
 
 6c. **Build the delivery set.**
    ```
-   python3 SKILL/scripts/finalize_delivery.py <out> --source-url "<URL>" \
-     --source-title "<title>" --description-file <out>/CHANNEL_DESCRIPTION.txt \
-     --workdir <WORKDIR>
+   "<PY>" SKILL/scripts/finalize_delivery.py "<out>" --source-url "<URL>" \
+     --source-title "<title>" --description-file "<out>/CHANNEL_DESCRIPTION.txt" \
+     --workdir "<WORKDIR>"
    ```
    Every clip ends up as `.mp4` + `.thumb.jpg` + `.srt` (captions timed to the clip,
    upload in YouTube Studio → Subtitles → Upload file, With timing) + `.txt` (title,
@@ -137,7 +150,10 @@ continuing. If no count is given, let the content decide (20 min → 2–3, 35 m
 - Horizontal clips are **not cropped** — source is letterboxed to 1920×1080 if needed.
 - Captions (when on) are Whisper word-level, bottom-aligned, 3-word continuous highlight.
   Whisper is only imported when captions are on.
-- Clips longer than 15 min are truncated with a WARNING — split them instead.
+- Clips longer than 20 min are refused before anything renders — split them
+  (`--allow-truncate` cuts them at 20:00 instead, mid-sentence; avoid it).
+- Every path goes in double quotes: Windows user folders and this repo's own location can
+  contain spaces, and Git Bash drops unquoted backslashes.
 - Team setup (deps, first run) is in `SKILL/TEAM-SETUP.md`.
 - Keep each run in its own folder under `~/Downloads`; never overwrite a previous
   video's folder.

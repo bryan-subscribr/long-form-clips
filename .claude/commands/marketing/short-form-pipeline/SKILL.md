@@ -61,7 +61,7 @@ Full detail in `PRINCIPLES.md`. In short:
 | Mode | Command | Render flag | Output | Clip length |
 |------|---------|-------------|--------|-------------|
 | Vertical Shorts | `/short-form-repurposing <url>` | `--aspect 9:16` (default) | 1080×1920, face-tracked crop | 20–58s |
-| Horizontal long-form clips | `/long-form-clips <url> [count]` | `--aspect 16:9 --no-captions [--encoder h264_videotoolbox]` | 1920×1080, no crop, thumb frame + contact sheet per clip | 4–5 min or longer (2–3 occasionally, cap 15) |
+| Horizontal long-form clips | `/long-form-clips <url> [count]` | `--aspect 16:9 --no-captions [--encoder <doctor's ENCODER>]` | 1920×1080, no crop, thumb frame + contact sheet per clip | 4–5 min or longer (2–3 occasionally, cap 20) |
 
 Rules for the horizontal mode are in `PRINCIPLES.md` → "Horizontal (Long-Form Clip) Mode".
 Title + thumbnail packaging comes from `.claude/skills/clip-packaging` (ships in this repo).

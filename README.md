@@ -12,13 +12,21 @@ thumbnail text = the speaker's spoken payoff, zero word overlap**.
 
 ## Quick start
 
+macOS:
+
 ```bash
+brew install yt-dlp ffmpeg deno python@3.12
 git clone https://github.com/bryan-subscribr/long-form-clips.git
 cd long-form-clips
-brew install yt-dlp ffmpeg
-python3 -m pip install --user opencv-python numpy Pillow
+python3 -m venv .venv
+.venv/bin/pip install -r .claude/commands/marketing/short-form-pipeline/requirements.txt
 bash .claude/commands/marketing/short-form-pipeline/scripts/doctor.sh
 ```
+
+Windows: the same in PowerShell with `winget install Python.Python.3.12 Git.Git Gyan.FFmpeg
+yt-dlp.yt-dlp DenoLand.Deno` — the exact steps are in
+[`TEAM-SETUP.md`](.claude/commands/marketing/short-form-pipeline/TEAM-SETUP.md#windows-10--11).
+Doctor must end with `READY=yes`; it also names the fastest video encoder the machine has.
 
 Open Claude Code in this folder, switch to Sonnet (`/model sonnet` — the workflow is
 tuned for it, about $1–2 per 90-minute video), and run:
@@ -49,7 +57,7 @@ Vertical Shorts instead: `/short-form-repurposing <url>` (needs `pip install ope
 
 - Every clip passes a five-point standalone test (cold viewer understands it, starts on the
   hook, one arc, ends on the payoff, no sponsor reads).
-- Target 4–5 minutes or longer; 2–3 only when the idea is a natural unit; cap 15.
+- Target 4–5 minutes or longer; 2–3 only when the idea is a natural unit; cap 20.
 - Titles: plain beats clever, the speaker's own words, first person on their own channel,
   every number literally true of the clip.
 - Thumbnail frame: the right speaker, eyes to camera, mouth closed or mid-smile, not mid-word.
@@ -59,8 +67,10 @@ Vertical Shorts instead: `/short-form-repurposing <url>` (needs `pip install ope
 ## Tests
 
 ```bash
-cd .claude/commands/marketing/short-form-pipeline/scripts
-python3 test_longform.py && python3 test_pipeline.py
+PY=.venv/bin/python        # Windows: .venv/Scripts/python.exe
+"$PY" .claude/commands/marketing/short-form-pipeline/scripts/test_longform.py
+"$PY" .claude/commands/marketing/short-form-pipeline/scripts/test_pipeline.py      # skips without the Anthropic SDK
+"$PY" .claude/skills/clip-packaging/scripts/test_check_package.py
 ```
 
 ## Licence

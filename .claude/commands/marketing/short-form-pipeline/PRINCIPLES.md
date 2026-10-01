@@ -66,7 +66,8 @@ clips of 4–5 minutes or longer** for the speaker's channel. Rendered with
 - **Target 4–5 min or longer per clip.** One throughline, several beats
   (story → framework → payoff). A 2–3 min clip is fine *occasionally* when the
   idea is a natural unit (a rapid-fire game, a single story), not the default.
-  Hard ceiling 15 min. Anything under ~90s is a Short — cut it vertical instead.
+  Hard ceiling 20 min (`render_clips.py` refuses longer windows; YouTube needs a
+  verified channel above 15 min). Anything under ~90s is a Short — cut it vertical instead.
 - **Prefer merging adjacent beats over splitting them.** If two neighbouring
   segments share a throughline the host bridges ("what about…", "so how do
   you…"), cut them as one longer clip rather than two 3-minute ones.
@@ -91,7 +92,8 @@ clips of 4–5 minutes or longer** for the speaker's channel. Rendered with
    or the start of the next topic.
 5. **No fluff inside the window.** Sponsor reads, subscribe/like asks,
    self-promo, housekeeping, inside jokes, tangents that don't pay off — cut or
-   skip the clip. `AD_MARKERS` is the deterministic backstop.
+   skip the clip. There is no automatic backstop in the long-form path (`AD_MARKERS`
+   only runs in the API Shorts script), so check every window by eye.
 
 ## Cutting mechanics
 
@@ -99,14 +101,14 @@ clips of 4–5 minutes or longer** for the speaker's channel. Rendered with
   word isn't clipped; don't pad into the previous speaker's sentence.
 - Source stays uncropped: **1920×1080, H.264 + AAC**, letterboxed if the source
   isn't 16:9. No face-tracking, no zoom.
-- **Captions are optional** for horizontal. Default ON (bottom, 3-word
-  continuous highlight). Use `--no-captions` for a clean master and let
-  YouTube CC handle it.
+- **Captions are optional** for horizontal. `/long-form-clips` renders with
+  `--no-captions` (a clean master) and ships an `.srt` for YouTube CC; burned-in
+  captions (bottom, 3-word continuous highlight) are opt-in.
 
 ## Packaging (thumbnails matter here — unlike Shorts)
 
 Title + thumbnail text come from the **`clip-packaging` skill**
-(`~/.claude/skills/clip-packaging/SKILL.md`), measured on all 2,795 @MoreMozi
+(`.claude/skills/clip-packaging/SKILL.md` in this repo), measured on all 2,795 @MoreMozi
 clips. That skill is the source of truth; the summary:
 
 - **The law:** title = the viewer's situation, thumb text = the speaker's spoken
@@ -139,8 +141,9 @@ clips. That skill is the source of truth; the summary:
 - **Cut to fit the honest title.** If the strongest plain title only describes
   the first half of a long clip, split the clip rather than stretch the title.
 - **Mechanical gate:** every shipped pair passes
-  `python3 ~/.claude/skills/clip-packaging/scripts/check_package.py --title … --thumb … --transcript …`
-  with exit 0 (overlap, length, case, banned words, thumb words spoken).
+  `.claude/skills/clip-packaging/scripts/check_package.py --title … --thumb … --transcript …
+  --start … --end … --thumb-line … --ban …` with exit 0 (overlap, length, case, banned words
+  and the speaker's name, the thumb line spoken inside the clip window).
 - **Batch rule:** no title archetype above 40% of the batch; no repeated thumb
   word across the batch.
 - **Description:** most creators run one fixed channel boilerplate (masterclass
@@ -156,7 +159,7 @@ clips. That skill is the source of truth; the summary:
 `start`, `end` (MM:SS), `title`, `hook_line`, `open_loop`, `thumbnail_text`
 (with `**accent**`), `thumb_line` (the spoken line + timestamp it comes from),
 `thumb_frame_at` (absolute MM:SS of the spoken thumb line — the renderer runs
-`pick_thumb_frame.py` over ±10 s of it and writes the best 1280×720 frame plus a
+`pick_thumb_frame.py` over ±15 s of it and writes the best 1280×720 frame plus a
 contact sheet of the top 6), `thumb_side` (`left|right|any`: where the speaker
 sits in the two-shot), `caption`, `pinned_comment`. `render_clips.py` writes
 them into `METADATA.md`.
@@ -166,7 +169,7 @@ them into `METADATA.md`.
 The speaker must look **composed and impressive**: eyes open, mouth closed or
 mid-smile, face large in frame, not mid-gesture, not caught between two
 expressions. Never grab the frame at the exact second the line is spoken — that
-lands mid-word. `pick_thumb_frame.py` ranks a ±10 s window on face size, single
+lands mid-word. `pick_thumb_frame.py` ranks a ±15 s window on face size, single
 subject, low motion, sharpness, eyes detected, and a still mouth region, then
 writes `*.thumb-candidates.jpg`. On a two-person podcast pass `thumb_ref` (any
 clean frame of the speaker) so the picker drops the host's reaction close-ups —

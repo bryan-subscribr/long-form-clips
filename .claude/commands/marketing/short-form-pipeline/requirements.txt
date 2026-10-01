@@ -1,10 +1,11 @@
-# Core dependencies
-anthropic>=0.39.0
-openai-whisper>=20231117
-yt-dlp>=2024.1.0
+# Long-form clips (/long-form-clips) — every Python package the workflow imports.
+#   pip install -r .claude/commands/marketing/short-form-pipeline/requirements.txt
+# ffmpeg is a system tool: winget (Windows) or brew (macOS), see TEAM-SETUP.md.
+yt-dlp[default]            # fetch.py uses this copy first; when YouTube answers 403: pip install -U yt-dlp
+opencv-python>=4.8,<5      # thumbnail frame picker; OpenCV 5 removed the CascadeClassifier it uses
+numpy>=1.24
+Pillow>=10                 # thumbnail text renderer
+openai-whisper>=20231117   # transcript when YouTube withholds captions (common); burned-in captions
 
-# Smart crop (face detection)
-mediapipe>=0.10.0
-opencv-python>=4.8.0
-
-# Standard library (no install needed): json, os, re, subprocess, argparse, tempfile, shutil, uuid, math, logging, pathlib, datetime
+# The API-driven Shorts pipeline (shortform_pipeline.py) also needs:
+#   pip install -r .claude/commands/marketing/short-form-pipeline/requirements-shorts.txt

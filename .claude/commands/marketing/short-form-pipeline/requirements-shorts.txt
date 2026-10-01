@@ -1,0 +1,5 @@
+# Only for shortform_pipeline.py (the API-key Shorts pipeline) and its face-tracked crop.
+# /long-form-clips and /short-form-repurposing do not need these.
+-r requirements.txt
+anthropic>=0.39.0
+mediapipe>=0.10.0          # face-tracked 9:16 crop; without it the crop falls back to audio panning
