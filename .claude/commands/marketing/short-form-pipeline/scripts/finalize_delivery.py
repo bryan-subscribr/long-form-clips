@@ -23,7 +23,7 @@ import argparse, json, os, re, subprocess, sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from timeutil import parse_time_to_seconds as sec  # noqa: E402
+from timeutil import parse_time_to_seconds as sec, utf8_console  # noqa: E402
 from captions import clip_srt, clip_transcript, load_cues  # noqa: E402
 
 def _find_preview() -> Path:
@@ -50,10 +50,11 @@ def main() -> None:
     ap.add_argument("--description-file", default=None)
     ap.add_argument("--workdir", default=None, help="fetch.py workdir; its *.vtt feeds per-clip captions")
     args = ap.parse_args()
+    utf8_console()
     if not PREVIEW.exists():
         sys.exit(f"clip-packaging skill not found (looked for {PREVIEW}). It ships in this repo under .claude/skills/clip-packaging — pull the branch.")
     OUT = Path(os.path.expanduser(args.out))
-    fixed_desc = Path(args.description_file).read_text().rstrip("\n") if args.description_file else None
+    fixed_desc = Path(args.description_file).read_text(encoding="utf-8-sig").rstrip("\n") if args.description_file else None
 
     cues = None
     if args.workdir:
@@ -61,7 +62,8 @@ def main() -> None:
         if cues is None:
             print(f"WARN no segments.json or *.vtt in {args.workdir}; captions skipped")
 
-    results = json.load(open(OUT / "clips_result.json"))
+    with open(OUT / "clips_result.json", encoding="utf-8-sig") as fh:
+        results = json.load(fh)
     index = ["# Clip delivery", f"Source: {args.source_title}", args.source_url, "",
              "Per clip: `.mp4` video · `.thumb.jpg` thumbnail (text burned) · `.srt` captions for YouTube Studio → Subtitles → Upload · "
              "`.txt` title + description + pinned comment + timed transcript · `.thumb-frame.jpg` clean frame · `.thumb-candidates.jpg` the frames considered.", "",
@@ -74,7 +76,7 @@ def main() -> None:
         thumb = Path(str(stem) + ".thumb.jpg")
         if r.get("thumb_frame") and Path(r["thumb_frame"]).exists() and r.get("thumbnail_text"):
             proc = subprocess.run([sys.executable, str(PREVIEW), r["thumb_frame"], r["thumbnail_text"], "-o", str(thumb)],
-                                  capture_output=True, text=True)
+                                  capture_output=True, text=True, encoding="utf-8", errors="replace")
             if proc.returncode != 0:
                 print(f"WARN clip {i} thumbnail: exit {proc.returncode} {proc.stderr.strip()[-300:]}")
         s, e = sec(r["start"]), sec(r["end"])
@@ -87,7 +89,7 @@ def main() -> None:
         srt_path = Path(str(stem) + ".srt")
         if cues is not None:
             srt_text = clip_srt(cues, s, e)
-            srt_path.write_text(srt_text)
+            srt_path.write_text(srt_text, encoding="utf-8")
             transcript_block = ["TRANSCRIPT (clip time)", clip_transcript(cues, s, e), "",
                                 f"CAPTIONS — upload {srt_path.name} in YouTube Studio → Subtitles → Upload file (With timing)", srt_text.rstrip("\n"), ""]
         else:
@@ -103,9 +105,9 @@ def main() -> None:
             "FILES", mp4.name, thumb.name if thumb.exists() else "(thumbnail render failed)",
             *([srt_path.name] if srt_path.exists() else []), "",
         ]
-        Path(str(stem) + ".txt").write_text("\n".join(txt))
+        Path(str(stem) + ".txt").write_text("\n".join(txt), encoding="utf-8")
         index.append(f"| {i} | {r['title']} | {length} | {thumb_plain} |")
-    (OUT / "README.md").write_text("\n".join(index) + "\n")
+    (OUT / "README.md").write_text("\n".join(index) + "\n", encoding="utf-8")
     print("finalized", len(results), "clips ->", OUT)
 
 

@@ -188,5 +188,48 @@ class FinalizeDelivery(unittest.TestCase):
             self.assertIn("| 1 | Test | 4:50 | Price or cost? |", Path(td, "README.md").read_text())
 
 
+class WindowsSafety(unittest.TestCase):
+    """What breaks on a Windows PC: a non-UTF-8 default encoding, and over-long windows."""
+
+    def non_utf8_env(self):
+        env = {**os.environ, "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0", "LC_ALL": "C", "LANG": "C"}
+        enc = subprocess.run([sys.executable, "-c", "import locale; print(locale.getpreferredencoding(False))"],
+                             capture_output=True, text=True, env=env).stdout.strip().lower()
+        if enc in ("utf-8", "utf8"):
+            self.skipTest("cannot force a non-UTF-8 locale here")
+        return env
+
+    def test_finalize_survives_a_non_utf8_locale(self):
+        env = self.non_utf8_env()
+        with tempfile.TemporaryDirectory() as td:
+            mp4 = Path(td, "01_Test.mp4"); mp4.write_bytes(b"")
+            with open(Path(td, "clips_result.json"), "w", encoding="utf-8") as fh:
+                json.dump([{"file": str(mp4), "ok": True, "start": "1:00", "end": "5:00",
+                            "title": "Don\u2019t Chase \u2014 Lead \U0001F3AF", "thumbnail_text": "Stop **chasing**",
+                            "thumb_line": "1:30 stop chasing", "pinned_comment": "pc", "caption": "c",
+                            "thumb_frame": None}], fh, ensure_ascii=False)
+            Path(td, "src.en.vtt").write_text("WEBVTT\n\n00:01:00.000 --> 00:01:03.000\nyou stop chasing \u266a\n",
+                                              encoding="utf-8")
+            proc = subprocess.run([sys.executable, str(HERE / "finalize_delivery.py"), td, "--source-url",
+                                   "https://youtu.be/x", "--workdir", td], capture_output=True, env=env)
+            self.assertEqual(proc.returncode, 0, proc.stderr.decode("utf-8", "replace"))
+            self.assertIn("\u2192", Path(td, "01_Test.txt").read_text(encoding="utf-8"))
+            self.assertIn("Don\u2019t Chase \u2014 Lead \U0001F3AF", Path(td, "README.md").read_text(encoding="utf-8"))
+
+    def test_render_refuses_windows_over_the_cap_before_rendering(self):
+        with tempfile.TemporaryDirectory() as td:
+            with open(Path(td, "meta.json"), "w", encoding="utf-8") as fh:
+                json.dump({"source": str(Path(td, "missing.mp4")), "title": "t", "url": "u"}, fh)
+            clips = [{"start": "10:00", "end": "14:00", "title": "Fine"},
+                     {"start": "20:00", "end": "41:00", "title": "Twenty-one minutes"}]
+            Path(td, "clips.json").write_text(json.dumps(clips), encoding="utf-8")
+            proc = subprocess.run([sys.executable, str(HERE / "render_clips.py"), "--workdir", td, "--clips",
+                                   str(Path(td, "clips.json")), "--out", str(Path(td, "out")), "--aspect", "16:9",
+                                   "--no-captions"], capture_output=True, text=True, encoding="utf-8")
+            self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+            self.assertIn("clip 2 'Twenty-one minutes': 1260s is over the 1200s cap", proc.stderr)
+            self.assertFalse(Path(td, "out").exists())          # refused before anything was rendered
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

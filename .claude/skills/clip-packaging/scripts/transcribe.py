@@ -10,16 +10,17 @@ Order of engines tried: faster-whisper (cached models), whisper-cli (whisper.cpp
 import argparse, json, os, re, shutil, subprocess, sys, tempfile
 
 def run(cmd, **kw):
-    return subprocess.run(cmd, check=True, capture_output=True, text=True, **kw)
+    return subprocess.run(cmd, check=True, capture_output=True, text=True, encoding='utf-8', errors='replace', **kw)
 
 def fetch_youtube(url, tmp):
     """Return (audio_path, subtitle_segments_or_None). Tries auto-subs first (fast), audio second."""
     vid_json = run(['yt-dlp', '--skip-download', '--write-auto-subs', '--sub-langs', 'en', '--sub-format', 'json3',
-                    '-o', os.path.join(tmp, 'clip.%(ext)s'), '--print', '%(title)s', url]).stdout.strip()
+                    '-o', os.path.join(tmp, 'clip.%(ext)s'), '--no-simulate', '--print', '%(title)s', url]).stdout.strip()
     subs = [f for f in os.listdir(tmp) if f.endswith('.json3')]
     segs = None
     if subs:
-        j = json.load(open(os.path.join(tmp, subs[0])))
+        with open(os.path.join(tmp, subs[0]), encoding='utf-8') as fh:
+            j = json.load(fh)
         segs = []
         for ev in j.get('events', []):
             if 'segs' not in ev:
@@ -51,7 +52,8 @@ def whisper_cli(wav, model):
     if not mp:
         raise RuntimeError('no ggml model found for whisper-cli')
     out = run([cli, '-m', mp, '-f', wav, '-oj', '-of', wav[:-4]]).stdout
-    j = json.load(open(wav[:-4] + '.json'))
+    with open(wav[:-4] + '.json', encoding='utf-8') as fh:
+        j = json.load(fh)
     segs = []
     for s in j.get('transcription', []):
         segs.append((s['offsets']['from'] / 1000, s['offsets']['to'] / 1000, s['text'].strip()))
@@ -80,7 +82,7 @@ def main():
             sys.stderr.write(f'faster-whisper failed ({e}); trying whisper-cli\n')
             segs = whisper_cli(wav, a.model)
     out = a.out or (os.path.splitext(os.path.basename(a.source))[0] if not title else re.sub(r'[^\w\- ]', '', title)) + '.transcript.txt'
-    with open(out, 'w') as f:
+    with open(out, 'w', encoding='utf-8') as f:
         if title:
             f.write(f'# source title: {title}\n')
         for st, en, t in segs:

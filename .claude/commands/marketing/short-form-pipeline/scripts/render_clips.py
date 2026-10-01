@@ -12,9 +12,13 @@ Usage:
       [--aspect 9:16|16:9] [--no-captions] [--model small]
 
   --aspect 9:16   (default) vertical Shorts, 1080x1920, face-tracked crop, 60s cap
-  --aspect 16:9   horizontal long-form clips, 1920x1080, no crop, 15 min cap
+  --aspect 16:9   horizontal long-form clips, 1920x1080, no crop, 20 min cap
   --no-captions   skip burned-in captions (common for horizontal clips)
-  --encoder       libx264 (default, ~5 min per 10-min AV1 clip) or h264_videotoolbox (macOS, 3-5x faster)
+  --encoder       libx264 (default, ~5 min per 10-min AV1 clip) or the hardware encoder doctor.py
+                  names (h264_videotoolbox on a Mac, h264_nvenc / h264_qsv / h264_amf on Windows)
+  --x264-preset   libx264 speed (default medium; doctor.py suggests veryfast on machines without
+                  a hardware encoder)
+  --allow-truncate  render clips longer than the cap anyway, cut at the cap (default: refuse up front)
   --start-index N number the first clip NN_ from N when adding to an existing folder
 
 clips_result.json is written after EVERY clip and merged by output file, so a
@@ -41,7 +45,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from timeutil import parse_time_to_seconds as to_sec  # noqa: E402
+from timeutil import parse_time_to_seconds as to_sec, utf8_console  # noqa: E402
 from video_clipper import MAX_MID_DURATION, MAX_SHORT_DURATION, VideoClipper  # noqa: E402
 
 
@@ -50,7 +54,8 @@ def load_results(out_dir: str) -> list[dict]:
     if not os.path.exists(path):
         return []
     try:
-        return json.load(open(path))
+        with open(path, encoding="utf-8-sig") as fh:
+            return json.load(fh)
     except json.JSONDecodeError:
         return []
 
@@ -64,7 +69,8 @@ def upsert_result(results: list[dict], entry: dict) -> list[dict]:
 
 
 def save_results(out_dir: str, results: list[dict]) -> None:
-    json.dump(results, open(f"{out_dir}/clips_result.json", "w"), indent=2, default=str)
+    with open(f"{out_dir}/clips_result.json", "w", encoding="utf-8") as fh:
+        json.dump(results, fh, indent=2, default=str, ensure_ascii=False)
 
 
 def warn_if_failed(label: str, proc: subprocess.CompletedProcess) -> None:
@@ -97,7 +103,7 @@ def write_metadata(out_dir: str, meta: dict, results: list[dict], aspect: str = 
             f"**Pinned comment:** {r.get('pinned_comment', '')}",
             "",
         ]
-    Path(f"{out_dir}/METADATA.md").write_text("\n".join(lines))
+    Path(f"{out_dir}/METADATA.md").write_text("\n".join(lines), encoding="utf-8")
 
 
 def main() -> None:
@@ -109,20 +115,40 @@ def main() -> None:
     ap.add_argument("--aspect", choices=["9:16", "16:9"], default="9:16")
     ap.add_argument("--no-captions", action="store_true")
     ap.add_argument("--start-index", type=int, default=1, help="number the first clip NN_ from here (append to an existing folder)")
-    ap.add_argument("--encoder", default="libx264", help="libx264 or h264_videotoolbox (macOS hardware, much faster)")
+    ap.add_argument("--encoder", default="libx264", help="libx264, or the hardware encoder doctor.py reports")
+    ap.add_argument("--x264-preset", default="medium", help="libx264 preset (veryfast on slow PCs)")
+    ap.add_argument("--allow-truncate", action="store_true", help="cut over-long clips at the cap instead of refusing")
     ap.add_argument("--append", action="store_true", help=argparse.SUPPRESS)  # always on now; kept so old commands do not break
     args = ap.parse_args()
+    utf8_console()
     clip_type = "vertical_short" if args.aspect == "9:16" else "horizontal_mid"
     cap = MAX_SHORT_DURATION if args.aspect == "9:16" else MAX_MID_DURATION
 
-    meta = json.load(open(f"{args.workdir}/meta.json"))
+    with open(f"{args.workdir}/meta.json", encoding="utf-8-sig") as fh:
+        meta = json.load(fh)
     src = meta["source"]
-    clips = json.load(open(args.clips))
+    # utf-8-sig: clips.json may be hand-edited on Windows (Notepad writes a BOM); titles carry curly quotes.
+    with open(args.clips, encoding="utf-8-sig") as fh:
+        clips = json.load(fh)
+    # Check every window before rendering anything: a 20-min source window must not ship as
+    # its first N minutes cut mid-sentence, and a bad clip should not surface an hour into a run.
+    problems = []
+    for i, c in enumerate(clips, args.start_index):
+        s, e = to_sec(c["start"]), to_sec(c["end"])
+        if e <= s:
+            problems.append(f"clip {i} '{c.get('title', '')}': end {c['end']} is not after start {c['start']}")
+        elif e - s > cap and not args.allow_truncate:
+            problems.append(f"clip {i} '{c.get('title', '')}': {e - s:.0f}s is over the {cap}s cap for {args.aspect}"
+                            " (split it, or pass --allow-truncate to cut it at the cap)")
+    if problems:
+        print("ERROR nothing rendered:", *problems, sep="\n  ", file=sys.stderr)
+        sys.exit(2)
     out_dir = os.path.expanduser(args.out)
     os.makedirs(out_dir, exist_ok=True)
 
-    vc = VideoClipper(use_whisper=False)
+    vc = VideoClipper(use_whisper=False, make_dirs=False)
     vc.video_encoder = args.encoder
+    vc.x264_preset = args.x264_preset
     model = None
     if not args.no_captions:
         import whisper  # noqa: WPS433 — only needed when burning captions
@@ -141,7 +167,7 @@ def main() -> None:
             warn_if_failed(f"clip {i} audio extract", subprocess.run(
                 ["ffmpeg", "-y", "-ss", str(s), "-t", str(e - s), "-i", src,
                  "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", aud],
-                capture_output=True, text=True,
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
             ))
             r = model.transcribe(aud, word_timestamps=True, language="en", verbose=False)
             words = [
@@ -168,7 +194,7 @@ def main() -> None:
                  "--window", str(c.get("thumb_window", 15)),
                  *(["--crop-bottom", str(c["thumb_crop_bottom"])] if c.get("thumb_crop_bottom") else []),
                  *(["--ref-min", str(c["thumb_ref_min"])] if c.get("thumb_ref_min") else [])],
-                capture_output=True, text=True,
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
             )
             if picker.stdout.strip():
                 print(f"   thumb: {picker.stdout.strip().splitlines()[0]}", flush=True)
@@ -180,7 +206,7 @@ def main() -> None:
                     ["ffmpeg", "-y", "-ss", str(to_sec(c["thumb_frame_at"])), "-i", src, "-frames:v", "1",
                      "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",
                      "-q:v", "2", thumb_frame],
-                    capture_output=True, text=True,
+                    capture_output=True, text=True, encoding="utf-8", errors="replace",
                 ))
                 if not os.path.exists(thumb_frame):
                     thumb_frame = None

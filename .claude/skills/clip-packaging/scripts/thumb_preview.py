@@ -18,7 +18,9 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 FONTS = [os.path.join(_HERE, '..', 'assets', 'fonts', 'Montserrat-ExtraBold.ttf'),   # vendored (OFL) so the team renders in the channel typeface
          os.path.expanduser('~/Library/Fonts/Montserrat-ExtraBold.ttf'), os.path.expanduser('~/Library/Fonts/Montserrat-Bold.ttf'),
          os.path.expanduser('~/Library/Fonts/Poppins-Bold.ttf'), os.path.expanduser('~/Library/Fonts/Montserrat-SemiBold.ttf'),
-         '/System/Library/Fonts/Supplemental/Arial Bold.ttf']
+         '/System/Library/Fonts/Supplemental/Arial Bold.ttf',
+         os.path.join(os.environ.get('WINDIR', r'C:\Windows'), 'Fonts', 'arialbd.ttf'),        # Windows
+         '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf']                                 # Linux/WSL
 
 def font(size):
     for f in FONTS:

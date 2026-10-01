@@ -36,7 +36,7 @@ MIN_CLIP_SCORE = 18
 MIN_SHORT_DURATION = 15
 MAX_SHORT_DURATION = 60
 MIN_MID_DURATION = 300
-MAX_MID_DURATION = 900  # 15 min ceiling for horizontal clips
+MAX_MID_DURATION = 1200  # 20 min ceiling for horizontal clips (YouTube needs a verified channel above 15 min)
 
 # ── Voice patterns ─────────────────────────────────────────────────────────────
 # Customize these to match your creator's speaking style.
@@ -85,11 +85,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 
 class VideoClipper:
-    def __init__(self, dry_run=False, use_whisper=True):
+    def __init__(self, dry_run=False, use_whisper=True, make_dirs=True):
         self.dry_run = dry_run
         self.use_whisper = use_whisper
         self._whisper_model = None
-        self.ensure_directories()
+        if make_dirs:   # the standalone CLI writes data/clips; render_clips.py passes False (no stray folder in the cwd)
+            self.ensure_directories()
 
     def ensure_directories(self):
         Path(CLIPS_DIR).mkdir(parents=True, exist_ok=True)
@@ -111,7 +112,7 @@ class VideoClipper:
         if not os.path.exists(CONTENT_ATOMS_FILE):
             print(f"Content atoms file not found: {CONTENT_ATOMS_FILE}")
             return []
-        with open(CONTENT_ATOMS_FILE, 'r') as f:
+        with open(CONTENT_ATOMS_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
         youtube_atoms = [a for a in data.get('atoms', [])
                          if a.get('source', '').startswith('youtube') and a.get('source_url')]
@@ -122,7 +123,7 @@ class VideoClipper:
         if not os.path.exists(CLIPS_HISTORY_FILE):
             return set()
         try:
-            with open(CLIPS_HISTORY_FILE, 'r') as f:
+            with open(CLIPS_HISTORY_FILE, 'r', encoding='utf-8') as f:
                 return set(json.load(f).get('processed_video_ids', []))
         except Exception:
             return set()
@@ -223,7 +224,7 @@ class VideoClipper:
             return []
 
     def parse_vtt(self, vtt_file):
-        with open(vtt_file, 'r') as f:
+        with open(vtt_file, 'r', encoding='utf-8', errors='replace') as f:
             content = f.read()
         transcript = []
         seen_texts = set()
@@ -352,7 +353,7 @@ class VideoClipper:
                 events.append(f"Dialogue: 0,{start_ts},{end_ts},Default,,0,0,0,,{line_text}")
 
         ass_content = header + "\n".join(events) + "\n"
-        with open(output_path, 'w') as f:
+        with open(output_path, 'w', encoding='utf-8') as f:
             f.write(ass_content)
         return output_path
 
@@ -403,7 +404,7 @@ class VideoClipper:
             srt_lines.append("")
 
         if not self.dry_run:
-            with open(srt_path, 'w') as f:
+            with open(srt_path, 'w', encoding='utf-8') as f:
                 f.write('\n'.join(srt_lines))
 
     def _seconds_to_srt_time(self, seconds):
@@ -424,6 +425,7 @@ class VideoClipper:
         try:
             import cv2
             import mediapipe as mp
+            import numpy as np
         except ImportError:
             print("   Warning: mediapipe/cv2 not available, skipping face detection")
             return None
@@ -432,7 +434,7 @@ class VideoClipper:
         temp_frames = []
 
         for t in sample_times:
-            frame_path = f"/tmp/face_frame_{uuid.uuid4().hex[:8]}.jpg"
+            frame_path = os.path.join(tempfile.gettempdir(), f"face_frame_{uuid.uuid4().hex[:8]}.jpg")
             cmd = ['ffmpeg', '-y', '-ss', str(t), '-i', video_path,
                    '-frames:v', '1', '-q:v', '2', frame_path]
             try:
@@ -453,7 +455,7 @@ class VideoClipper:
 
         with mp_face.FaceDetection(model_selection=1, min_detection_confidence=0.5) as detector:
             for fp in temp_frames:
-                img = cv2.imread(fp)
+                img = cv2.imdecode(np.fromfile(fp, dtype=np.uint8), cv2.IMREAD_COLOR)   # imread() fails on non-ASCII paths on Windows
                 if img is None:
                     continue
                 rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -580,13 +582,15 @@ class VideoClipper:
 
     # ── Clip creation ──────────────────────────────────────────────────
 
-    video_encoder = 'libx264'   # override per instance; 'h264_videotoolbox' is 3-5x faster on macOS
+    video_encoder = 'libx264'   # override per instance; doctor.py names the fastest one this machine has
+    x264_preset = 'medium'      # 'veryfast' roughly halves libx264 time on slow PCs (doctor.py suggests it)
 
-    def video_codec_args(self):
-        """ffmpeg -c:v arguments for the configured encoder."""
-        if self.video_encoder == 'libx264':
-            return ['-c:v', 'libx264', '-preset', 'medium', '-crf', '20']
-        return ['-c:v', self.video_encoder, '-b:v', '8M']
+    def video_codec_args(self, encoder=None):
+        """ffmpeg -c:v arguments for `encoder` (default: the configured one)."""
+        encoder = encoder or self.video_encoder
+        if encoder == 'libx264':
+            return ['-c:v', 'libx264', '-preset', self.x264_preset, '-crf', '20']
+        return ['-c:v', encoder, '-b:v', '8M']
 
     def create_single_clip(self, video_path, segment, clip_type, output_path, captions=True):
         """Create a single clip with ffmpeg. Uses ASS captions + smart crop.
@@ -654,13 +658,16 @@ class VideoClipper:
         ]
 
         try:
-            subprocess.run(cmd, capture_output=True, text=True, check=True)
+            subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace', check=True)
             print(f"Created {clip_type}: {os.path.basename(output_path)}")
             return True
         except subprocess.CalledProcessError as e:
             print(f"Clip creation failed: {e.stderr[-500:]}")
-            # Retry without subtitles
-            print("Retrying without subtitles...")
+            # Retry without subtitles, and on libx264 when a hardware encoder was asked for: an
+            # encoder this machine lacks (videotoolbox off a Mac, nvenc without an NVIDIA GPU) is
+            # the usual first-run failure, and retrying it would fail the same way.
+            fallback_encoder = 'libx264' if self.video_encoder != 'libx264' else None
+            print("Retrying without subtitles" + (f" on libx264 (not {self.video_encoder})" if fallback_encoder else "") + "...")
             if clip_type == 'vertical_short':
                 fallback_vf = self.build_crop_filter(src_w, src_h, 'center')
             else:
@@ -668,11 +675,11 @@ class VideoClipper:
             cmd_fb = [
                 'ffmpeg', '-y', '-ss', str(start_time), '-i', video_path,
                 '-t', str(duration), '-vf', fallback_vf,
-                *self.video_codec_args(),
+                *self.video_codec_args(fallback_encoder),
                 '-c:a', 'aac', '-b:a', '192k', output_path
             ]
             try:
-                subprocess.run(cmd_fb, capture_output=True, text=True, check=True)
+                subprocess.run(cmd_fb, capture_output=True, text=True, encoding='utf-8', errors='replace', check=True)
                 print(f"Created {clip_type} (no subs): {os.path.basename(output_path)}")
                 return True
             except subprocess.CalledProcessError as e2:
@@ -884,7 +891,7 @@ class VideoClipper:
         history = []
         if os.path.exists(CLIPS_HISTORY_FILE):
             try:
-                with open(CLIPS_HISTORY_FILE, 'r') as f:
+                with open(CLIPS_HISTORY_FILE, 'r', encoding='utf-8') as f:
                     history = json.load(f).get('clips', [])
             except Exception:
                 pass
@@ -896,7 +903,7 @@ class VideoClipper:
             'processed_video_ids': list(set(c['source_video']['video_id'] for c in history))
         }
         if not self.dry_run:
-            with open(CLIPS_HISTORY_FILE, 'w') as f:
+            with open(CLIPS_HISTORY_FILE, 'w', encoding='utf-8') as f:
                 json.dump(history_data, f, indent=2)
 
         latest_data = {
@@ -906,7 +913,7 @@ class VideoClipper:
             'clips': clips_created
         }
         if not self.dry_run:
-            with open(CLIPS_LATEST_FILE, 'w') as f:
+            with open(CLIPS_LATEST_FILE, 'w', encoding='utf-8') as f:
                 json.dump(latest_data, f, indent=2)
         print(f"Saved {len(clips_created)} clips")
 

@@ -25,7 +25,7 @@ _CUE = re.compile(r"(\d\d:\d\d:\d\d\.\d+) --> (\d\d:\d\d:\d\d\.\d+)")
 def parse_rolling_vtt(vtt_path: str) -> list[tuple[float, str]]:
     """Return [(start_seconds, text), ...] with rolling repeats removed."""
     kept: list[tuple[float, str]] = []
-    for cue in re.split(r"\n\n+", Path(vtt_path).read_text()):
+    for cue in re.split(r"\n\n+", Path(vtt_path).read_text(encoding="utf-8", errors="replace")):
         m = _CUE.search(cue)
         if not m:
             continue
@@ -48,7 +48,9 @@ def parse_rolling_vtt(vtt_path: str) -> list[tuple[float, str]]:
 
 def parse_whisper_segments(path: str) -> list[tuple[float, str]]:
     """segments.json from fetch.py's Whisper fallback -> [(start_seconds, text), ...]."""
-    return [(float(sg["start"]), sg["text"].strip()) for sg in json.load(open(path)) if sg.get("text", "").strip()]
+    with open(path, encoding="utf-8") as fh:
+        segs = json.load(fh)
+    return [(float(sg["start"]), sg["text"].strip()) for sg in segs if sg.get("text", "").strip()]
 
 
 def load_cues(workdir: str) -> list[tuple[float, str]] | None:

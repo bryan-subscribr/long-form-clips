@@ -46,11 +46,26 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from timeutil import parse_time_to_seconds as to_sec  # noqa: E402
+from timeutil import parse_time_to_seconds as to_sec, utf8_console  # noqa: E402
 
 CASCADE = cv2.data.haarcascades
 FACE = cv2.CascadeClassifier(CASCADE + "haarcascade_frontalface_default.xml")
 EYES = cv2.CascadeClassifier(CASCADE + "haarcascade_eye.xml")
+
+
+def imread(path):
+    """cv2.imread that also works for paths with accents/ñ on Windows (OpenCV's own opener is ANSI-only there)."""
+    try:
+        return cv2.imdecode(np.fromfile(path, dtype=np.uint8), cv2.IMREAD_COLOR)
+    except (OSError, ValueError):
+        return None
+
+
+def imwrite(path, img, quality=95):
+    ok, buf = cv2.imencode(os.path.splitext(path)[1] or ".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, quality])
+    if ok:
+        buf.tofile(path)
+    return ok
 
 
 def mmss(s: float) -> str:
@@ -74,7 +89,7 @@ def extract_frames(src: str, start: float, duration: float, step: float, out_dir
     proc = subprocess.run(
         ["ffmpeg", "-y", "-loglevel", "error", "-ss", f"{start:.3f}", "-t", f"{duration:.3f}", "-i", src,
          "-vf", f"fps=1/{step:.4f},{frame_vf(crop_bottom)}", "-q:v", "2", os.path.join(out_dir, "f%04d.jpg")],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     if proc.returncode != 0:
         print(f"WARN frame extraction: {proc.stderr.strip()[-300:]}", file=sys.stderr)
@@ -105,7 +120,7 @@ def person_hist(img, face):
 
 
 def ref_hist(path):
-    img = cv2.imread(path)
+    img = imread(path)
     if img is None:
         sys.exit(f"cannot read --ref {path}")
     faces = faces_in(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), top_frac=1.0)
@@ -190,7 +205,7 @@ def contact_sheet(paths, labels, out, cols=3, cell=(426, 240)):
     rows = (len(paths) + cols - 1) // cols
     sheet = np.zeros((rows * (cell[1] + 28), cols * cell[0], 3), dtype=np.uint8)
     for i, (p, lab) in enumerate(zip(paths, labels)):
-        img = cv2.imread(p)
+        img = imread(p)
         if img is None:
             continue
         img = cv2.resize(img, cell)
@@ -198,7 +213,7 @@ def contact_sheet(paths, labels, out, cols=3, cell=(426, 240)):
         y0, x0 = r * (cell[1] + 28), c * cell[0]
         sheet[y0:y0 + cell[1], x0:x0 + cell[0]] = img
         cv2.putText(sheet, lab, (x0 + 8, y0 + cell[1] + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-    cv2.imwrite(out, sheet)
+    imwrite(out, sheet)
 
 
 def main() -> None:
@@ -218,6 +233,7 @@ def main() -> None:
     ap.add_argument("--zoom-below", type=float, default=0.035, help="auto zoom-crop when face area ratio is below this (0 = off)")
     ap.add_argument("--ref-min", type=float, default=0.85, help="min histogram correlation to count as the same person (guest 0.85-0.99, hosts 0.6-0.8 in testing)")
     args = ap.parse_args()
+    utf8_console()
     ref = ref_hist(args.ref) if args.ref else None
 
     cand_dir = args.cand_dir or tempfile.mkdtemp(prefix="thumbcand_")
@@ -227,7 +243,7 @@ def main() -> None:
         src = os.path.join(cand_dir, f"cand{args.pick}.jpg")
         if not os.path.exists(src):
             sys.exit(f"no candidate {args.pick} in {cand_dir}")
-        cv2.imwrite(args.out, cv2.imread(src))
+        imwrite(args.out, imread(src))
         print(f"picked candidate {args.pick} -> {args.out}")
         return
 
@@ -237,7 +253,7 @@ def main() -> None:
     prev_gray = None
     with tempfile.TemporaryDirectory() as td:
         for t, fp in extract_frames(args.source, start, 2 * args.window, args.step, td, args.crop_bottom):
-            img = cv2.imread(fp)
+            img = imread(fp)
             if img is None:
                 continue
             s, det, gray = score_frame(img, prev_gray, args.side, ref, args.ref_min)
@@ -256,10 +272,10 @@ def main() -> None:
                 img = zoom_to_face(img, det["box"])
                 top[n - 1] = (s, t, fp, {**det, "zoomed": True}, img)
             cp = os.path.join(cand_dir, f"cand{n}.jpg")
-            cv2.imwrite(cp, img)
+            imwrite(cp, img)
             paths.append(cp)
             labels.append(f"#{n} {mmss(t)} s={s:.2f} face={det['face_ratio']} eyes={det['eyes']} id={det.get('ident')}{' Z' if det.get('zoomed') else ''}")
-        cv2.imwrite(args.out, top[0][4])
+        imwrite(args.out, top[0][4])
         if args.sheet:
             contact_sheet(paths, labels, args.sheet)
 
