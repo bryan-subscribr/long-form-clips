@@ -9,10 +9,16 @@ root automatically, so open Claude Code **in this repo** and the commands are th
 Both systems end the same way: a `.venv` inside the repo holding the Python packages, and
 `doctor` printing `READY=yes`. The workflow finds that `.venv` by itself.
 
+**Clone into your home folder, never into Documents, Desktop, iCloud Drive or OneDrive.** Those
+folders offload files to the cloud; reading an offloaded file waits for its download, so a run
+simply stops (on one Mac, iCloud offloaded 28,195 of the venv's 28,278 files overnight). Doctor
+fails in a synced folder.
+
 ### macOS
 
 ```bash
 brew install yt-dlp ffmpeg deno python@3.12
+cd ~
 git clone https://github.com/bryan-subscribr/long-form-clips.git && cd long-form-clips
 python3 -m venv .venv
 .venv/bin/pip install -r .claude/commands/marketing/short-form-pipeline/requirements.txt
@@ -34,6 +40,7 @@ setx PYTHONUTF8 1
 Close PowerShell, open a new one (so the new programs are on PATH), then:
 
 ```powershell
+cd $HOME
 git clone https://github.com/bryan-subscribr/long-form-clips.git
 cd long-form-clips
 py -3.12 -m venv .venv

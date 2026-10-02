@@ -88,6 +88,52 @@ def check_python() -> str:
         return exe.as_posix()
 
 
+def check_location() -> bool:
+    """A cloud-synced folder hangs the pipeline with no message.
+
+    iCloud (Desktop & Documents) and OneDrive (Files On-Demand) offload files they think are
+    unused; reading one later waits for the download. In a .venv that is thousands of files,
+    so the next `import` simply stops. Seen on a Mac: 28,195 of 28,278 venv files offloaded
+    overnight. Returns False when the folder is synced (the package imports would hang too).
+    """
+    root = REPO.resolve()
+    home = Path.home().resolve()
+    synced = None
+    if IS_WIN:
+        for var in ("OneDrive", "OneDriveCommercial", "OneDriveConsumer"):
+            base = os.environ.get(var)
+            if base and str(root).lower().startswith(str(Path(base).resolve()).lower()):
+                synced = "OneDrive"
+    elif IS_MAC:
+        if str(root).startswith(str(home / "Library" / "Mobile Documents")):
+            synced = "iCloud Drive"
+        for top in ("Documents", "Desktop"):
+            d = (home / top).resolve()
+            if synced is None and (root == d or str(root).startswith(str(d) + os.sep)):
+                p = run(["xattr", "-p", "com.apple.file-provider-domain-id", str(d)])
+                if p and p.returncode == 0 and "CloudDocs" in p.stdout:
+                    synced = "iCloud Drive (Desktop & Documents)"
+        offloaded = 0
+        venv = REPO / ".venv"
+        if venv.exists():
+            for i, f in enumerate(f for f in venv.rglob("*") if f.is_file()):
+                if i >= 400:
+                    break
+                if getattr(os.lstat(f), "st_flags", 0) & 0x40000000:   # SF_DATALESS: content lives in the cloud
+                    offloaded += 1
+        if offloaded and synced is None:
+            synced = "a cloud file provider"
+        if offloaded:
+            synced += f", {offloaded} of the first 400 .venv files already offloaded"
+    if synced:
+        target = r"C:\Users\<you>\long-form-clips" if IS_WIN else "~/long-form-clips"
+        fail(f"this folder is synced by {synced}: offloaded files make runs hang with no message. "
+             f"Clone the repo again into {target} (outside Documents, Desktop and OneDrive) and use that copy")
+        return False
+    ok("folder is not cloud-synced")
+    return True
+
+
 def check_encoding() -> None:
     enc = locale.getpreferredencoding(False).lower()
     if sys.flags.utf8_mode or enc in ("utf-8", "utf8"):
@@ -215,10 +261,14 @@ def main() -> None:
         pass
     print(f"== clip pipeline doctor — {platform.system()} {platform.release()} ({platform.machine()}) ==")
     py = check_python()
+    local = check_location()
     check_encoding()
     check_binaries()
     encoder, preset = check_ffmpeg()
-    check_packages()
+    if local:
+        check_packages()
+    else:
+        print("  skip  python packages (importing them from a synced folder is what hangs)")
     check_repo()
     check_disk()
     print()

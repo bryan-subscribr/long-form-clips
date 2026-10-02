@@ -16,6 +16,7 @@ macOS:
 
 ```bash
 brew install yt-dlp ffmpeg deno python@3.12
+cd ~                     # not Documents/Desktop: iCloud offloads files and runs hang
 git clone https://github.com/bryan-subscribr/long-form-clips.git
 cd long-form-clips
 python3 -m venv .venv
